@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Writer - 智能写作助手</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#f0f2f5; color:#333; min-height:100vh; }
+
+/* 顶部栏 */
+header { background:#fff; padding:12px 20px; box-shadow:0 1px 3px rgba(0,0,0,0.1); display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
+header h1 { font-size:18px; color:#3f51b5; }
+header button { background:#3f51b5; color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
+header button:hover { background:#303f9f; }
+
+/* 容器 */
+.container { max-width:900px; margin:0 auto; padding:16px; }
+
+/* 卡片 */
+.card { background:#fff; border-radius:8px; padding:16px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,0.06); cursor:pointer; transition:box-shadow 0.2s; position:relative; }
+.card:hover { box-shadow:0 2px 8px rgba(0,0,0,0.12); }
+.card h3 { font-size:16px; margin-bottom:4px; }
+.card .meta { font-size:12px; color:#999; }
+.card .badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; margin-right:6px; }
+.badge-wechat { background:#e8f5e9; color:#2e7d32; }
+.badge-video { background:#fff3e0; color:#e65100; }
+.badge-general { background:#e3f2fd; color:#1565c0; }
+
+/* 按钮 */
+.btn { padding:8px 16px; border-radius:6px; border:none; cursor:pointer; font-size:14px; }
+.btn-primary { background:#3f51b5; color:#fff; }
+.btn-danger { background:#f44336; color:#fff; }
+.btn-outline { background:#fff; border:1px solid #d0d0d0; color:#555; transition:all 0.15s; }
+.btn-outline:hover { background:#f5f5f5; border-color:#3f51b5; color:#3f51b5; }
+.btn-sm { padding:4px 10px; font-size:12px; }
+.btn:disabled { opacity:0.5; cursor:not-allowed; }
+.btn-del { position:absolute; top:8px; right:8px; width:24px; height:24px; border:none; background:transparent; color:#ccc; font-size:18px; cursor:pointer; border-radius:50%; display:flex; align-items:center; justify-content:center; transition:all 0.2s; z-index:2; }
+.btn-del:hover { background:#fee; color:#f44336; }
+
+/* 输入 */
+input, textarea, select { width:100%; padding:10px 12px; border:1px solid #d0d0d0; border-radius:6px; font-size:14px; font-family:inherit; outline:none; }
+input:focus, textarea:focus { border-color:#3f51b5; }
+.input-row { display:flex; gap:8px; margin-bottom:12px; }
+.input-row input { flex:1; }
+
+/* 写作工作台 */
+.workspace { display:grid; grid-template-columns:40% 60%; gap:12px; height:calc(100vh - 140px); }
+@media (max-width:768px) { .workspace { grid-template-columns:1fr; } }
+
+/* 对话区 */
+.chat-panel { background:#fff; border-radius:8px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,0.06); }
+.chat-header { padding:12px 16px; border-bottom:1px solid #eee; font-weight:bold; font-size:14px; display:flex; align-items:center; justify-content:space-between; }
+.chat-messages { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px; }
+.msg { max-width:85%; padding:10px 14px; border-radius:12px; font-size:14px; line-height:1.6; word-break:break-word; }
+.msg-user { align-self:flex-end; background:#3f51b5; color:#fff; border-bottom-right-radius:4px; }
+.msg-ai { align-self:flex-start; background:#f0f0f0; border-bottom-left-radius:4px; }
+.msg-ai p { margin:4px 0; }
+.msg-ai code { background:rgba(0,0,0,0.06); padding:1px 4px; border-radius:3px; font-size:13px; }
+.msg-ai pre { background:#282c34; color:#abb2bf; padding:10px; border-radius:6px; overflow-x:auto; font-size:12px; margin:6px 0; }
+.chat-input-area { padding:12px; border-top:1px solid #eee; display:flex; gap:8px; }
+.chat-input-area input { flex:1; }
+.chat-input-area button { padding:8px 16px; }
+
+/* 编辑器区 */
+.editor-panel { background:#fff; border-radius:8px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,0.06); }
+.editor-tabs { display:flex; border-bottom:1px solid #eee; }
+.editor-tabs button { flex:1; padding:10px; border:none; background:none; cursor:pointer; font-size:13px; color:#999; border-bottom:2px solid transparent; }
+.editor-tabs button.active { color:#3f51b5; border-bottom-color:#3f51b5; font-weight:bold; }
+.editor-content { flex:1; overflow-y:auto; padding:16px; }
+.editor-content textarea { width:100%; height:100%; border:none; resize:none; font-family:"SF Mono",Consolas,monospace; font-size:14px; line-height:1.8; }
+.preview-content { font-size:15px; line-height:1.8; }
+.preview-content h1 { font-size:22px; margin:16px 0 8px; }
+.preview-content h2 { font-size:18px; margin:12px 0 6px; }
+.preview-content p { margin:8px 0; }
+.preview-content pre { background:#282c34; color:#abb2bf; padding:12px; border-radius:6px; overflow-x:auto; font-size:13px; }
+.preview-content blockquote { border-left:3px solid #3f51b5; padding:4px 12px; margin:8px 0; background:#f5f5f5; color:#666; }
+.preview-content code { background:#f0f0f0; padding:1px 4px; border-radius:3px; font-size:13px; }
+
+/* 模式选择 */
+.mode-selector { display:flex; gap:8px; margin-bottom:8px; }
+.mode-btn { flex:1; padding:8px; border:2px solid #e0e0e0; border-radius:8px; background:#fff; cursor:pointer; text-align:center; font-size:13px; transition:all 0.2s; }
+.mode-btn:hover { border-color:#3f51b5; }
+.mode-btn.active { border-color:#3f51b5; background:#e8eaf6; }
+
+/* 加载动画 */
+.spinner { display:inline-block; width:16px; height:16px; border:2px solid #ccc; border-top-color:#3f51b5; border-radius:50%; animation:spin 0.6s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Toast */
+.toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); padding:10px 20px; border-radius:8px; color:#fff; font-size:14px; z-index:100; animation:fadeIn 0.3s; }
+.toast-success { background:#4caf50; }
+.toast-error { background:#f44336; }
+@keyframes fadeIn { from{opacity:0;transform:translateX(-50%) translateY(10px);} to{opacity:1;transform:translateX(-50%) translateY(0);} }
+
+.hidden { display:none !important; }
+.empty { text-align:center; padding:40px; color:#999; }
+
+/* 登录/注册页面 */
+.auth-container { max-width:400px; margin:60px auto; padding:20px; }
+.auth-card { background:#fff; border-radius:12px; padding:32px; box-shadow:0 2px 12px rgba(0,0,0,0.08); }
+.auth-card h2 { text-align:center; margin-bottom:24px; color:#3f51b5; }
+.auth-card .form-group { margin-bottom:16px; }
+.auth-card label { display:block; margin-bottom:6px; font-size:14px; color:#666; }
+.auth-card .btn { width:100%; padding:10px; margin-top:8px; }
+.auth-card .switch-link { text-align:center; margin-top:16px; font-size:13px; color:#3f51b5; cursor:pointer; }
+.auth-card .switch-link:hover { text-decoration:underline; }
+.auth-card .error-msg { color:#f44336; font-size:13px; margin-top:4px; }
+</style>
+</head>
+<body>
+
+<header id="mainHeader" class="hidden">
+  <button id="btnBack" class="btn-outline hidden" onclick="goBack()">← 返回</button>
+  <h1 id="headerTitle">✍️ AI Writer</h1>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <span id="currentUser" style="font-size:13px;color:#999;"></span>
+    <button id="btnNew" onclick="handleNew()">+ 新建</button>
+    <button class="btn btn-sm btn-outline" id="btnLogout" onclick="logout()">退出</button>
+  </div>
+</header>
+
+<div class="container" id="app"></div>
+
+<!-- 登录/注册页面 -->
+<div class="auth-container" id="authPage">
+  <div class="auth-card">
+    <h2 id="authTitle">登录 AI Writer</h2>
+    <div class="form-group">
+      <label>用户名</label>
+      <input id="authUsername" placeholder="请输入用户名" autocomplete="username">
+    </div>
+    <div class="form-group" id="confirmPasswordGroup" style="display:none;">
+      <label>确认密码</label>
+      <input id="authConfirmPassword" type="password" placeholder="请再次输入密码" autocomplete="new-password">
+    </div>
+    <div class="form-group">
+      <label>密码</label>
+      <input id="authPassword" type="password" placeholder="请输入密码（至少6位）" autocomplete="current-password" onkeypress="if(event.key==='Enter')handleAuth()">
+    </div>
+    <div id="authError" class="error-msg"></div>
+    <button class="btn btn-primary" id="authSubmitBtn" onclick="handleAuth()">登 录</button>
+    <div class="switch-link" id="authSwitch" onclick="toggleAuthMode()">没有账号？去注册</div>
+  </div>
+</div>
+
+<script>
+// ==================== 认证管理 ====================
+const API = '/api';
+const TOKEN_KEY = 'ai_writer_token';
+let authMode = 'login';  // login | register
+
+function getToken() { return localStorage.getItem(TOKEN_KEY); }
+function setToken(token) { localStorage.setItem(TOKEN_KEY, token); }
+function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+function isLoggedIn() { return !!getToken(); }
+
+function logout() {
+  clearToken();
+  $('#mainHeader').classList.add('hidden');
+  $('#authPage').classList.remove('hidden');
+  $('#app').innerHTML = '';
+  document.getElementById('authUsername').value = '';
+  document.getElementById('authPassword').value = '';
+  document.getElementById('authError').textContent = '';
+  authMode = 'login';
+  updateAuthUI();
+}
+
+function toggleAuthMode() {
+  authMode = authMode === 'login' ? 'register' : 'login';
+  updateAuthUI();
+}
+
+function updateAuthUI() {
+  const isLogin = authMode === 'login';
+  document.getElementById('authTitle').textContent = isLogin ? '登录 AI Writer' : '注册 AI Writer';
+  document.getElementById('authSubmitBtn').textContent = isLogin ? '登 录' : '注 册';
+  document.getElementById('authSwitch').textContent = isLogin ? '没有账号？去注册' : '已有账号？去登录';
+  document.getElementById('confirmPasswordGroup').style.display = isLogin ? 'none' : 'block';
+  document.getElementById('authError').textContent = '';
+}
+
+async function handleAuth() {
+  const username = document.getElementById('authUsername').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errorEl = document.getElementById('authError');
+
+  if (!username || !password) {
+    errorEl.textContent = '请填写用户名和密码';
+    return;
+  }
+  if (password.length < 6) {
+    errorEl.textContent = '密码至少需要 6 位';
+    return;
+  }
+
+  if (authMode === 'register') {
+    const confirm = document.getElementById('authConfirmPassword').value;
+    if (password !== confirm) {
+      errorEl.textContent = '两次输入的密码不一致';
+      return;
+    }
+  }
+
+  const path = authMode === 'login' ? '/auth/login' : '/auth/register';
+  const btn = document.getElementById('authSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = '处理中...';
+  errorEl.textContent = '';
+
+  try {
+    const res = await fetch(API + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || '请求失败');
+
+    setToken(data.access_token);
+    document.getElementById('currentUser').textContent = `👤 ${data.username}`;
+    document.getElementById('authPage').classList.add('hidden');
+    document.getElementById('mainHeader').classList.remove('hidden');
+    $('#headerTitle').textContent = '✍️ AI Writer';
+    state = { view: 'projects', projectId: null, articleId: null, writingMode: 'coach', isStreaming: false };
+    $('#btnBack').classList.add('hidden');
+    $('#btnNew').classList.remove('hidden');
+    render();
+  } catch (e) {
+    errorEl.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = authMode === 'login' ? '登 录' : '注 册';
+  }
+}
+
+// ==================== 状态管理 ====================
+let state = {
+  view: 'projects',      // projects | articles | workspace
+  projectId: null,
+  articleId: null,
+  writingMode: 'coach',  // coach | fast
+  isStreaming: false,
+};
+
+// ==================== 工具函数 ====================
+function $(sel, el=document) { return el.querySelector(sel); }
+function $$(sel, el=document) { return el.querySelectorAll(sel); }
+
+async function api(method, path, body) {
+  const opts = { method, headers:{'Content-Type':'application/json'} };
+  const token = getToken();
+  if (token) opts.headers['Authorization'] = `Bearer ${token}`;
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(API + path, opts);
+  if (res.status === 401) {
+    clearToken();
+    logout();
+    throw new Error('登录已过期，请重新登录');
+  }
+  if (res.status === 204) return null;
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || '请求失败');
+  return data;
+}
+
+function toast(msg, type='success') {
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+// ==================== 路由 ====================
+function navigate(view, params={}) {
+  Object.assign(state, params);
+  state.view = view;
+
+  // 返回按钮：只在子页面显示
+  if (view === 'articles' || view === 'workspace') {
+    $('#btnBack').classList.remove('hidden');
+  } else {
+    $('#btnBack').classList.add('hidden');
+  }
+
+  // 新建按钮：只在列表页显示，写作页隐藏
+  if (view === 'workspace') {
+    $('#btnNew').classList.add('hidden');
+  } else {
+    $('#btnNew').classList.remove('hidden');
+    // 更新新建按钮的提示文字
+    $('#btnNew').textContent = view === 'projects' ? '+ 新建项目' : '+ 新建文章';
+  }
+
+  render();
+}
+
+function goBack() {
+  if (state.view === 'workspace') navigate('articles', {projectId: state.projectId, articleId: null});
+  else if (state.view === 'articles') navigate('projects', {projectId: null, articleId: null});
+}
+
+// ==================== 渲染入口 ====================
+async function render() {
+  const app = $('#app');
+  app.innerHTML = '<div style="text-align:center;padding:40px"><div class="spinner"></div> 加载中...</div>';
+
+  try {
+    if (state.view === 'projects') await renderProjects(app);
+    else if (state.view === 'articles') await renderArticles(app);
+    else if (state.view === 'workspace') await renderWorkspace(app);
+  } catch(e) {
+    app.innerHTML = `<div class="empty">❌ 加载失败: ${e.message}</div>`;
+  }
+}
+
+// ==================== 项目列表页 ====================
+async function renderProjects(app) {
+  $('#headerTitle').textContent = '✍️ AI Writer';
+  const projects = await api('GET', '/projects');
+
+  let html = '';
+  if (projects.length === 0) {
+    html = '<div class="empty">📁 还没有项目，点击右上角「新建」创建第一个</div>';
+  }
+  for (const p of projects) {
+    const badgeClass = `badge-${p.workspace_type}`;
+    const wsLabel = {wechat:'📱 公众号', video:'🎬 视频', general:'📝 通用'}[p.workspace_type] || p.workspace_type;
+    html += `<div class="card" onclick="navigate('articles',{projectId:${p.id}})">
+      <button class="btn-del" title="删除项目" onclick="event.stopPropagation();deleteProject(${p.id})">×</button>
+      <h3>${esc(p.name)}</h3>
+      <div class="meta"><span class="badge ${badgeClass}">${wsLabel}</span> ${p.article_count} 篇文章</div>
+    </div>`;
+  }
+  app.innerHTML = html;
+
+  $('#btnNew').onclick = async () => {
+    const name = prompt('项目名称:');
+    if (!name) return;
+    const ws = prompt('工作区 (wechat/video/general):', 'wechat') || 'wechat';
+    await api('POST', '/projects', {name, workspace_type:ws});
+    toast('项目已创建');
+    render();
+  };
+}
+
+// ==================== 文章列表页 ====================
+async function renderArticles(app) {
+  const [projects, articles] = await Promise.all([
+    api('GET', '/projects'),
+    api('GET', `/projects/${state.projectId}/articles`),
+  ]);
+  const project = projects.find(p => p.id === state.projectId);
+  $('#headerTitle').textContent = project ? `📁 ${project.name}` : '文章列表';
+
+  let html = '';
+  if (articles.length === 0) {
+    html = '<div class="empty">📝 还没有文章，点击右上角「新建」开始写作</div>';
+  }
+  for (const a of articles) {
+    const stepLabel = {specify:'📋 需求', topic:'💡 选题', write:'✍️ 写作', review:'🔍 审校'}[a.workflow_step] || a.workflow_step;
+    html += `<div class="card" onclick="navigate('workspace',{projectId:${state.projectId},articleId:${a.id}})">
+      <button class="btn-del" title="删除文章" onclick="event.stopPropagation();deleteArticle(${a.id})">×</button>
+      <h3>${esc(a.title)}</h3>
+      <div class="meta">${stepLabel} · ${a.word_count}字 · ${a.writing_mode||'未选模式'}</div>
+    </div>`;
+  }
+  app.innerHTML = html;
+
+  $('#btnNew').onclick = async () => {
+    const title = prompt('文章标题:');
+    if (!title) return;
+    await api('POST', `/projects/${state.projectId}/articles`, {title});
+    toast('文章已创建');
+    render();
+  };
+}
+
+// ==================== 写作工作台 ⭐ ====================
+async function renderWorkspace(app) {
+  const article = await api('GET', `/articles/${state.articleId}`);
+  const messages = await api('GET', `/articles/${state.articleId}/messages`);
+  $('#headerTitle').textContent = `✍️ ${article.title}`;
+
+  state.writingMode = article.writing_mode || 'coach';
+
+  app.innerHTML = `
+    <div class="workspace">
+      <!-- 左侧：AI 对话 -->
+      <div class="chat-panel">
+        <div class="chat-header">
+          <span>🤖 AI 助手</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="btn btn-sm btn-outline" onclick="clearChat()" style="white-space:nowrap;">🗑 清空对话</button>
+            <div class="mode-selector">
+            <button class="mode-btn ${state.writingMode==='coach'?'active':''}" onclick="switchMode('coach')">🎓 教练</button>
+            <button class="mode-btn ${state.writingMode==='hybrid'?'active':''}" onclick="switchMode('hybrid')">🤝 半教练</button>
+            <button class="mode-btn ${state.writingMode==='fast'?'active':''}" onclick="switchMode('fast')">⚡ 快速</button>
+          </div>
+          </div>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          ${messages.length === 0 ? '<div class="empty" style="padding:20px">开始对话吧 👋</div>' : ''}
+        </div>
+        <div class="chat-input-area">
+          <input id="chatInput" placeholder="输入消息..." onkeypress="if(event.key==='Enter')sendMessage()">
+          <button class="btn btn-primary" onclick="sendMessage()" id="btnSend">发送</button>
+        </div>
+      </div>
+
+      <!-- 右侧：编辑器 -->
+      <div class="editor-panel">
+        <div class="editor-tabs">
+          <button class="active" onclick="switchTab('edit',this)">📝 编辑</button>
+          <button onclick="switchTab('preview',this)">👁 预览</button>
+          <button onclick="switchTab('wechat',this)">📱 微信预览</button>
+        </div>
+        <div class="editor-content" id="editorContent">
+          <textarea id="draftEditor" placeholder="在这里写 Markdown..."
+            oninput="autoSave()">${escHtml(article.draft||'')}</textarea>
+          <div id="previewPane" class="preview-content hidden"></div>
+          <div id="wechatPane" class="hidden" style="height:100%">
+            <iframe id="wechatFrame" style="width:100%;height:100%;border:none;background:#fff;"></iframe>
+          </div>
+        </div>
+        <div style="padding:8px 12px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;font-size:12px;color:#999;">
+          <span id="wordCount">${article.word_count||0} 字</span>
+          <button class="btn btn-sm btn-outline" onclick="exportWechat()">📱 导出微信</button>
+          <button class="btn btn-sm btn-outline" onclick="saveBrief()">📋 保存需求</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // 渲染历史消息
+  const msgContainer = $('#chatMessages');
+  for (const m of messages) {
+    appendMessage(m.role, m.content, msgContainer);
+  }
+  msgContainer.scrollTop = msgContainer.scrollHeight;
+}
+
+// ==================== 聊天功能 ====================
+function appendMessage(role, content, container) {
+  const el = document.createElement('div');
+  el.className = `msg msg-${role}`;
+  if (role === 'assistant') {
+    el.innerHTML = marked.parse(content);
+  } else {
+    el.textContent = content;
+  }
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendMessage() {
+  const input = $('#chatInput');
+  if (!input) return;
+  const content = input.value.trim();
+  if (!content || state.isStreaming) return;
+  if (!state.articleId) {
+    toast('请先选择一篇文章', 'error');
+    return;
+  }
+  input.value = '';
+  $('#btnSend').disabled = true;
+
+  const container = $('#chatMessages');
+  // 清空空状态
+  const emptyEl = $('.empty', container);
+  if (emptyEl) emptyEl.remove();
+
+  // 显示用户消息
+  appendMessage('user', content, container);
+
+  // 创建 AI 消息气泡（流式追加）
+  const aiEl = document.createElement('div');
+  aiEl.className = 'msg msg-ai';
+  let fullText = '';
+  container.appendChild(aiEl);
+
+  state.isStreaming = true;
+  let streamToEditor = false;  // 当前回复是否只走右侧编辑器（不显示在对话中）
+
+  try {
+    const headers = {'Content-Type':'application/json'};
+    const token = getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${API}/articles/${state.articleId}/chat`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({content, mode:state.writingMode}),
+    });
+
+    // HTTP 错误（非 SSE 流），直接显示错误
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || `请求失败 (${res.status})`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, {stream:true});
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.token) {
+            fullText += data.token;
+
+            if (data.stream_to_editor) {
+              // 所有模式统一：内容流式写入右侧编辑器，左侧只显示状态
+              if (!streamToEditor) {
+                streamToEditor = true;
+                const editTabBtn = $$('.editor-tabs button')[0];
+                if (editTabBtn) switchTab('edit', editTabBtn);
+              }
+              // 写入右侧编辑器
+              const editor = $('#draftEditor');
+              if (editor) {
+                editor.value = fullText;
+                const wc = fullText.replace(/\s/g, '').length;
+                const wcEl = $('#wordCount');
+                if (wcEl) wcEl.textContent = `${wc} 字`;
+              }
+              // 左侧显示模式对应的状态提示
+              const wc = fullText.replace(/\s/g, '').length;
+              const modeLabels = {coach:'🎓 教练回复中', hybrid:'🤝 AI 回复中', fast:'⚡ 生成文章中'};
+              const label = modeLabels[state.writingMode] || 'AI 回复中';
+              aiEl.innerHTML = `${label}... <em>${wc} 字</em>`;
+            } else {
+              // 兜底：旧版兼容，直接显示在左侧
+              aiEl.innerHTML = marked.parse(fullText);
+            }
+            container.scrollTop = container.scrollHeight;
+
+          } else if (data.done) {
+            if (streamToEditor && data.full_text) {
+              const wc = data.full_text.replace(/\s/g, '').length;
+              const doneLabels = {coach:'🎓 回复完成', hybrid:'🤝 回复完成', fast:'⚡ 文章已生成'};
+              const doneLabel = doneLabels[state.writingMode] || '回复完成';
+              aiEl.innerHTML = `✅ ${doneLabel}，共 <strong>${wc}</strong> 字，请在右侧查看和编辑。`;
+              const editor = $('#draftEditor');
+              if (editor) {
+                editor.value = data.full_text;
+                autoSave();
+              }
+            }
+          } else if (data.error) {
+            aiEl.innerHTML = `❌ ${escHtml(data.error)}`;
+          }
+        } catch(e) {}
+      }
+    }
+  } catch(e) {
+    // 区分不同类型的错误，给出明确提示
+    const msg = e.message || String(e);
+    if (msg.includes('Not authenticated') || msg.includes('登录')) {
+      // Token 失效或缺失 → 回登录页
+      aiEl.innerHTML = '⚠️ 登录已过期，请刷新页面重新登录。';
+      setTimeout(() => logout(), 1500);
+    } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+      aiEl.innerHTML = '❌ 网络连接失败，请检查服务是否运行。';
+    } else {
+      aiEl.innerHTML = `❌ 请求失败: ${escHtml(msg)}`;
+    }
+  }
+
+  state.isStreaming = false;
+  $('#btnSend').disabled = false;
+  $('#chatInput').focus();
+}
+
+// ==================== 清空对话 ====================
+async function clearChat() {
+  if (!confirm('确定要清空所有对话记录吗？清空后 AI 将不再记得之前聊过的内容。')) return;
+  try {
+    await api('DELETE', `/articles/${state.articleId}/messages`);
+    $('#chatMessages').innerHTML = '<div class="empty" style="padding:20px">对话已清空，重新开始吧 👋</div>';
+    toast('对话记录已清空');
+  } catch(e) {
+    toast('清空失败: ' + e.message, 'error');
+  }
+}
+
+// ==================== 写作模式切换 ====================
+async function switchMode(mode) {
+  state.writingMode = mode;
+
+  // UI 立即响应（不等 API），避免点击后蓝色框不跳
+  $$('.mode-btn').forEach(b => b.classList.remove('active'));
+  if (mode === 'coach') $$('.mode-btn')[0].classList.add('active');
+  else if (mode === 'hybrid') $$('.mode-btn')[1].classList.add('active');
+  else if (mode === 'fast') $$('.mode-btn')[2].classList.add('active');
+
+  // 后台持久化到数据库
+  try {
+    await api('PATCH', `/articles/${state.articleId}`, {writing_mode:mode});
+  } catch(e) {
+    toast('模式保存失败: ' + e.message, 'error');
+    return;
+  }
+
+  const tips = {
+    coach: '🎓 已切换到**教练模式**——我会提问引导你写，不会代笔（之前的对话内容已保留）。',
+    hybrid: '🤝 已切换到**半教练模式**——我会先和你聊大纲，确认后帮你写（之前的对话内容已保留）。',
+    fast: '⚡ 已切换到**快速模式**——我会直接生成初稿，你来审校（之前的对话内容已保留）。',
+  };
+  const labels = {coach:'教练', hybrid:'半教练', fast:'快速'};
+  appendMessage('assistant', tips[mode], $('#chatMessages'));
+  toast(`已切换为${labels[mode]}模式`);
+}
+
+// ==================== 编辑器 Tab 切换 ====================
+function switchTab(tab, btn) {
+  $$('.editor-tabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  $('#draftEditor').classList.add('hidden');
+  $('#previewPane').classList.add('hidden');
+  $('#wechatPane').classList.add('hidden');
+
+  if (tab === 'edit') {
+    $('#draftEditor').classList.remove('hidden');
+  } else if (tab === 'preview') {
+    const md = $('#draftEditor').value;
+    $('#previewPane').innerHTML = marked.parse(md);
+    $('#previewPane').classList.remove('hidden');
+  } else if (tab === 'wechat') {
+    renderWechatPreview();
+    $('#wechatPane').classList.remove('hidden');
+  }
+}
+
+// ==================== 保存草稿 ====================
+let autoSaveTimer;
+function autoSave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(async () => {
+    const draft = $('#draftEditor').value;
+    const wordCount = draft.replace(/\s/g,'').length;
+    try {
+      await api('PATCH', `/articles/${state.articleId}`, {draft, word_count:wordCount});
+      $('#wordCount').textContent = `${wordCount} 字`;
+    } catch(e) { /* 静默失败 */ }
+  }, 2000); // 2秒防抖
+}
+
+async function saveBrief() {
+  const brief = prompt('写作需求说明（brief）:', '');
+  if (brief === null) return;
+  await api('PATCH', `/articles/${state.articleId}`, {brief});
+  toast('需求已保存');
+}
+
+// ==================== 微信导出 ====================
+async function exportWechat() {
+  try {
+    const data = await api('GET', `/articles/${state.articleId}/wechat-export`);
+    await navigator.clipboard.writeText(data.html);
+    toast('微信格式 HTML 已复制到剪贴板！直接粘贴到公众号编辑器即可。');
+  } catch(e) {
+    // 降级：显示在 iframe 中
+    toast('导出失败，正在预览中显示', 'error');
+    switchTab('wechat', $$('.editor-tabs button')[2]);
+  }
+}
+
+async function renderWechatPreview() {
+  try {
+    const data = await api('GET', `/articles/${state.articleId}/wechat-export`);
+    const frame = $('#wechatFrame');
+    frame.srcdoc = data.html;
+  } catch(e) {
+    $('#wechatPane').innerHTML = '<div class="empty">❌ 加载失败</div>';
+  }
+}
+
+// ==================== 删除项目/文章 ====================
+async function deleteProject(id) {
+  if (!confirm('确定删除这个项目吗？项目下的所有文章和对话记录都会被删除，不可恢复。')) return;
+  try {
+    await api('DELETE', `/projects/${id}`);
+    toast('项目已删除');
+    render();
+  } catch(e) {
+    toast('删除失败: ' + e.message, 'error');
+  }
+}
+
+async function deleteArticle(id) {
+  if (!confirm('确定删除这篇文章吗？文章下的所有对话记录都会被删除，不可恢复。')) return;
+  try {
+    await api('DELETE', `/articles/${id}`);
+    toast('文章已删除');
+    render();
+  } catch(e) {
+    toast('删除失败: ' + e.message, 'error');
+  }
+}
+
+// ==================== 创建新项目/文章 ====================
+function handleNew() {
+  if (state.view === 'projects') {
+    (async () => {
+      const name = prompt('项目名称:');
+      if (!name) return;
+      const ws = prompt('工作区 (wechat/video/general):', 'wechat') || 'wechat';
+      await api('POST', '/projects', {name, workspace_type:ws});
+      toast('项目已创建');
+      render();
+    })();
+  } else if (state.view === 'articles') {
+    (async () => {
+      const title = prompt('文章标题:');
+      if (!title) return;
+      await api('POST', `/projects/${state.projectId}/articles`, {title});
+      toast('文章已创建');
+      render();
+    })();
+  }
+}
+
+// ==================== 辅助 ====================
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ==================== 启动 ====================
+(async function init() {
+  const token = getToken();
+  if (!token) {
+    // 未登录，显示登录页
+    document.getElementById('authPage').classList.remove('hidden');
+    document.getElementById('mainHeader').classList.add('hidden');
+    updateAuthUI();
+    return;
+  }
+
+  // 验证 token 是否还有效（调用 /auth/me）
+  try {
+    const res = await fetch(API + '/auth/me', {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('token invalid');
+    const user = await res.json();
+    document.getElementById('currentUser').textContent = `👤 ${user.username}`;
+    document.getElementById('authPage').classList.add('hidden');
+    document.getElementById('mainHeader').classList.remove('hidden');
+    render();
+  } catch (e) {
+    // token 无效，清空并显示登录页
+    clearToken();
+    document.getElementById('authPage').classList.remove('hidden');
+    document.getElementById('mainHeader').classList.add('hidden');
+    updateAuthUI();
+  }
+})();
+</script>
+</body>
+</html>

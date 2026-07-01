@@ -1,0 +1,13 @@
+# 密钥文件
+backend/run.sh
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# 数据库
+*.db
+
+# 环境变量
+.env
