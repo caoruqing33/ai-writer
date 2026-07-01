@@ -12,3 +12,4 @@ venv/
 # 环境变量
 .env
 PLAN.md
+docs/
