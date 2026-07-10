@@ -1,0 +1,4 @@
+# 开发/测试依赖（在 requirements.txt 之外）
+pytest==8.3.4
+pytest-cov==5.0.0
+httpx==0.28.1
